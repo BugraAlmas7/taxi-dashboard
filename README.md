@@ -71,7 +71,8 @@ Chronos-2 / TimesFM (Hugging Face + PEFT/LoRA) · Plotly · Docker.
 
 3. **Load the trip data.** Two ways:
 
-   - **Automatic (once):** in `.env` set `RUN_SETUP_DATA=1` (and optionally
+   - **Automatic (once):** create your `.env` first — `cp .env.example .env` —
+     then in it set `RUN_SETUP_DATA=1` (and optionally
      `SETUP_DATA_ARGS=--months-train 2016-12:2016-12 --months-test 2017-01:2017-01`
      (Dec 2016 is required for the live-page prewarm — the 30 days before the 2017-01-01 demo start)
      to limit the download), then `docker compose up`. The entrypoint downloads +
@@ -84,13 +85,25 @@ Chronos-2 / TimesFM (Hugging Face + PEFT/LoRA) · Plotly · Docker.
    of GB — start with a small month subset. (The bundled DB is also exposed on host
    port **5433** for loading with external tools if you prefer.)
 
-5. **Generate the models** (not shipped — regenerated locally). Baselines come
-   from `training/training_anomaly_models.py` and
-   `training/training_forecast_models.py`; the fine-tuned foundation models come
-   from the Colab notebooks in `notebooks/`. The live pipeline writes its own
-   models into `models_update/xgboost_stream/` and `finetune/chronos_ft_stream/`
-   as it runs. See `models_update/README.md` and `finetune/README.md` for where
-   each file lands.
+4. **Create an account.** The pages require a login: open
+   <http://localhost:8000/register/>, sign up, then log in. (Plain Django auth —
+   no email verification; the first account is yours.)
+
+5. **Generate the models** *(optional for the live demo — the live pipeline
+   trains its own models from the loaded data as it runs, writing them into
+   `models_update/xgboost_stream/` and `finetune/chronos_ft_stream/`)*.
+   The **baseline dashboard models** are not shipped and are regenerated
+   locally, inside the running container:
+
+   ```bash
+   docker compose exec web python training/training_anomaly_models.py
+   docker compose exec web python training/training_forecast_models.py   # --help for options
+   ```
+
+   The fine-tuned foundation models (Chronos-2 / TimesFM LoRA) come from the
+   Colab notebooks in `notebooks/` — run them on Colab (GPU) and copy the
+   checkpoints into `finetune/` as described in `finetune/README.md` and
+   `models_update/README.md`.
 
 6. Open <http://localhost:8000/> (dashboard) and <http://localhost:8000/live/>
    (live forecast). Use `localhost`, **not** `0.0.0.0`.
