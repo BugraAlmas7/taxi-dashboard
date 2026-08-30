@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Sign Up · NYC Taxi Dashboard</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+body{
+  font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  min-height:100vh;display:flex;align-items:center;justify-content:center;
+  background:linear-gradient(135deg,#1C7293 0%,#155870 100%);
+  color:#2C3E50;padding:20px;
+}
+.card{
+  background:#fff;width:100%;max-width:400px;border-radius:16px;
+  box-shadow:0 20px 60px rgba(0,0,0,.25);padding:36px 32px;
+}
+.brand{text-align:center;margin-bottom:24px}
+.brand .icon{font-size:44px;line-height:1}
+.brand h1{font-size:20px;font-weight:800;color:#1C7293;margin-top:8px}
+.brand p{font-size:12px;color:#8C98A4;margin-top:4px}
+label{display:block;font-size:11px;font-weight:700;color:#8C98A4;
+  text-transform:uppercase;letter-spacing:.5px;margin-bottom:6px}
+.fg{margin-bottom:15px}
+input{
+  width:100%;height:44px;border:1px solid #DDE3EA;border-radius:9px;
+  padding:0 14px;font-size:14px;outline:none;transition:border-color .15s,box-shadow .15s;
+}
+input:focus{border-color:#1C7293;box-shadow:0 0 0 3px rgba(28,114,147,.12)}
+.btn{
+  width:100%;height:46px;background:#1C7293;color:#fff;border:none;border-radius:9px;
+  font-size:15px;font-weight:700;cursor:pointer;margin-top:6px;transition:background .15s;
+}
+.btn:hover{background:#155870}
+.hint{font-size:11px;color:#8C98A4;margin-top:5px;line-height:1.4}
+.err{
+  background:#FDEDEC;border:1px solid #F5C6C0;color:#C0392B;
+  font-size:12px;border-radius:8px;padding:8px 12px;margin-top:5px;
+}
+.err-top{
+  background:#FDEDEC;border:1px solid #F5C6C0;color:#C0392B;
+  font-size:13px;border-radius:8px;padding:10px 12px;margin-bottom:18px;
+}
+.alt{text-align:center;font-size:13px;color:#8C98A4;margin-top:20px}
+.alt a{color:#1C7293;font-weight:700;text-decoration:none}
+.alt a:hover{text-decoration:underline}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <div class="icon">🚕</div>
+      <h1>Sign Up</h1>
+      <p>Create an account for the NYC Taxi Dashboard</p>
+    </div>
+
+    {% if form.non_field_errors %}
+      <div class="err-top">{{ form.non_field_errors|join:" " }}</div>
+    {% endif %}
+
+    <form method="post">
+      {% csrf_token %}
+
+      <div class="fg">
+        <label for="id_username">Username</label>
+        <input type="text" name="username" id="id_username"
+               value="{{ form.username.value|default:'' }}" required autofocus>
+        {% if form.username.errors %}<div class="err">{{ form.username.errors|join:" " }}</div>{% endif %}
+      </div>
+
+      <div class="fg">
+        <label for="id_password1">Password</label>
+        <input type="password" name="password1" id="id_password1" required>
+        {% if form.password1.errors %}<div class="err">{{ form.password1.errors|join:" " }}</div>{% endif %}
+        <div class="hint">At least 8 characters, cannot be entirely numeric.</div>
+      </div>
+
+      <div class="fg">
+        <label for="id_password2">Password (again)</label>
+        <input type="password" name="password2" id="id_password2" required>
+        {% if form.password2.errors %}<div class="err">{{ form.password2.errors|join:" " }}</div>{% endif %}
+      </div>
+
+      <button type="submit" class="btn">Create Account</button>
+    </form>
+
+    <div class="alt">
+      Already have an account? <a href="{% url 'login' %}">Log in</a>
+    </div>
+  </div>
+</body>
+</html>

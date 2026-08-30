@@ -1,0 +1,38 @@
+# Virtual environments
+venv312/
+venv/
+env/
+.venv/
+
+# Secrets
+.env
+
+# Python caches
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.Python
+
+# Git / editors / notebooks
+.git/
+.gitignore
+.vscode/
+.idea/
+.jupyter/
+.ipynb_checkpoints/
+wandb/
+
+# Large data & models — mounted at runtime via the compose volume, so they
+# must NOT bloat the image build context (was making the image many GB).
+data/
+*.parquet
+*.csv
+models_update/
+finetune/chronos_ft/
+finetune/chronos_ft_optuna/
+finetune/chronos_ft_stream/
+finetune/timesfm_ft/
+finetune/timesfm_ft_optuna/
+.hf_cache/
+db.sqlite3

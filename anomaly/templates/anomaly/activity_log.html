@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Activity Log · NYC Taxi Dashboard</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--pri:#1C7293;--pri-d:#155870;--bg:#ECF0F5;--card:#fff;--brd:#DDE3EA;
+  --txt:#2C3E50;--muted:#8C98A4;--green:#1E8449;--red:#C0392B;}
+body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:var(--bg);
+  color:var(--txt);font-size:14px;min-height:100vh;}
+.topbar{background:var(--pri);color:#fff;padding:0 24px;height:56px;display:flex;
+  align-items:center;gap:18px;position:sticky;top:0;z-index:200;box-shadow:0 2px 10px rgba(0,0,0,.2);}
+.topbar .brand{font-weight:800;}
+.nav{display:flex;gap:4px;margin-left:8px;}
+.nav a{color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:6px 12px;
+  border-radius:8px;opacity:.85;}
+.nav a:hover{background:rgba(255,255,255,.14);opacity:1;}
+.nav a.on{background:rgba(255,255,255,.22);opacity:1;}
+.topbar form{margin-left:auto;}
+.logout{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;
+  font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;}
+.main{padding:20px;max-width:1100px;margin:0 auto;}
+.card{background:var(--card);border:1px solid var(--brd);border-radius:12px;
+  box-shadow:0 2px 12px rgba(0,0,0,.06);padding:16px 18px;margin-bottom:16px;}
+h1{font-size:18px;color:var(--pri-d);margin-bottom:4px;}
+.sub{font-size:12px;color:var(--muted);margin-bottom:14px;}
+.grid{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;}
+.fg{display:flex;flex-direction:column;gap:4px;}
+.fg label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.fg select{height:34px;border:1px solid var(--brd);border-radius:7px;padding:0 9px;font-size:13px;min-width:150px;background:#fff;}
+.btn{height:34px;background:var(--pri);color:#fff;border:none;border-radius:8px;padding:0 16px;
+  font-size:13px;font-weight:700;cursor:pointer;}
+.btn:hover{background:var(--pri-d);}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--brd);border-radius:10px;}
+table{border-collapse:collapse;width:100%;font-size:12.5px;}
+th,td{padding:9px 12px;border-bottom:1px solid #eef2f5;text-align:left;white-space:nowrap;}
+th{background:#F5F8FB;color:var(--pri-d);font-weight:700;}
+.badge{font-size:11px;font-weight:700;padding:2px 9px;border-radius:10px;}
+.b-added{background:#E9F7EF;color:var(--green);}
+.b-deleted{background:#FDEDEC;color:var(--red);}
+.pager{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;flex-wrap:wrap;}
+.pager a,.pager span{padding:6px 12px;border:1px solid var(--brd);border-radius:8px;
+  text-decoration:none;color:var(--pri-d);font-size:13px;font-weight:600;background:#fff;}
+.pager a:hover{background:var(--pri);color:#fff;border-color:var(--pri);}
+.pager .cur{background:var(--pri);color:#fff;border-color:var(--pri);}
+.pager .dis{opacity:.4;pointer-events:none;}
+.empty{padding:24px;text-align:center;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">🚕 NYC Taxi</div>
+  <nav class="nav">
+    <a href="{% url 'panel' %}">Dashboard</a>
+    <a href="{% url 'raw_data' %}">Raw Data</a>
+    <a href="{% url 'data_entry' %}">Add Data</a>
+    <a href="{% url 'activity' %}" class="on">Activity</a>
+    <a href="{% url 'profile' %}">Profile</a>
+  </nav>
+  <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+    <button class="logout" type="submit">Log out</button>
+  </form>
+</div>
+
+<div class="main">
+  <div class="card">
+    <h1>Activity Log</h1>
+    <div class="sub">Who added / removed manual records, and when — newest first.</div>
+    <form method="get" class="grid">
+      <div class="fg">
+        <label>Member</label>
+        <select name="member">
+          <option value="">All members</option>
+          {% for u in members %}
+          <option value="{{ u.id }}" {% if member == u.id|stringformat:'s' %}selected{% endif %}>{{ u.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="fg">
+        <label>Action</label>
+        <select name="action">
+          <option value="all"     {% if action_filter == 'all' %}selected{% endif %}>All</option>
+          <option value="added"   {% if action_filter == 'added' %}selected{% endif %}>Added</option>
+          <option value="deleted" {% if action_filter == 'deleted' %}selected{% endif %}>Deleted</option>
+        </select>
+      </div>
+      <button class="btn" type="submit">Filter</button>
+    </form>
+  </div>
+
+  <div class="card">
+    {% if page.object_list %}
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr><th>When</th><th>User</th><th>Action</th><th>Record</th></tr>
+        </thead>
+        <tbody>
+          {% for ev in page.object_list %}
+          <tr>
+            <td>{{ ev.time|date:"Y-m-d H:i:s" }}</td>
+            <td>{{ ev.user }}</td>
+            <td><span class="badge b-{{ ev.action }}">{{ ev.action }}</span></td>
+            <td>{{ ev.summary }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pager">
+      {% if page.has_previous %}
+        <a href="?{{ querystring }}&page=1">« First</a>
+        <a href="?{{ querystring }}&page={{ page.previous_page_number }}">‹ Prev</a>
+      {% else %}
+        <span class="dis">« First</span><span class="dis">‹ Prev</span>
+      {% endif %}
+      <span class="cur">Page {{ page.number }} / {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}
+        <a href="?{{ querystring }}&page={{ page.next_page_number }}">Next ›</a>
+        <a href="?{{ querystring }}&page={{ page.paginator.num_pages }}">Last »</a>
+      {% else %}
+        <span class="dis">Next ›</span><span class="dis">Last »</span>
+      {% endif %}
+    </div>
+    {% else %}
+      <div class="empty">No activity yet.</div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

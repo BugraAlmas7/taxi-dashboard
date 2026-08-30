@@ -1,0 +1,42 @@
+services:
+  db:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-taxi_db}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      TZ: ${TZ:-America/New_York}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    ports:
+      - "5433:5432"          # host:container — 5433 avoids clashing with a local Postgres on 5432
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-taxi_db}"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  web:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - .:/app
+    environment:
+      - TZ=${TZ:-America/New_York}
+      - POSTGRES_DB=${POSTGRES_DB:-taxi_db}
+      - POSTGRES_USER=${POSTGRES_USER:-postgres}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
+      # Default target is the bundled `db` service. Override in .env to point at an
+      # external Postgres (e.g. POSTGRES_HOST=172.29.128.1 for a Windows host from WSL).
+      - POSTGRES_HOST=${POSTGRES_HOST:-db}
+      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      # optional one-time auto data load on startup (see .env.example)
+      - RUN_SETUP_DATA=${RUN_SETUP_DATA:-0}
+      - SETUP_DATA_ARGS=${SETUP_DATA_ARGS:-}
+    depends_on:
+      db:
+        condition: service_healthy
+
+volumes:
+  pgdata:

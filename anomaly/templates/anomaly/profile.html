@@ -1,0 +1,108 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Profile · NYC Taxi Dashboard</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--pri:#1C7293;--pri-d:#155870;--bg:#ECF0F5;--card:#fff;--brd:#DDE3EA;
+  --txt:#2C3E50;--muted:#8C98A4;--acc:#F0B429;--green:#1E8449;--red:#C0392B;}
+body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:var(--bg);
+  color:var(--txt);font-size:14px;min-height:100vh;}
+.topbar{background:var(--pri);color:#fff;padding:0 24px;height:56px;display:flex;
+  align-items:center;gap:18px;position:sticky;top:0;z-index:200;box-shadow:0 2px 10px rgba(0,0,0,.2);}
+.topbar .brand{font-weight:800;}
+.nav{display:flex;gap:4px;margin-left:8px;}
+.nav a{color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:6px 12px;
+  border-radius:8px;opacity:.85;}
+.nav a:hover{background:rgba(255,255,255,.14);opacity:1;}
+.nav a.on{background:rgba(255,255,255,.22);opacity:1;}
+.topbar form.lo{margin-left:auto;}
+.logout{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;
+  font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;}
+.main{padding:20px;max-width:760px;margin:0 auto;}
+.card{background:var(--card);border:1px solid var(--brd);border-radius:12px;
+  box-shadow:0 2px 12px rgba(0,0,0,.06);padding:18px 20px;margin-bottom:16px;}
+h1{font-size:18px;color:var(--pri-d);margin-bottom:4px;}
+h2{font-size:15px;color:var(--pri-d);margin-bottom:12px;}
+.sub{font-size:12px;color:var(--muted);margin-bottom:14px;}
+.stats{display:flex;flex-wrap:wrap;gap:12px;}
+.stat{flex:1;min-width:150px;background:#F5F8FB;border:1px solid var(--brd);border-radius:10px;padding:14px;}
+.stat .n{font-size:24px;font-weight:800;color:var(--pri-d);}
+.stat .l{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;margin-top:2px;}
+.fg{display:flex;flex-direction:column;gap:5px;margin-bottom:12px;}
+.fg label{font-size:11px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.fg input{height:40px;border:1px solid var(--brd);border-radius:8px;padding:0 12px;font-size:14px;}
+.btn{height:42px;background:var(--pri);color:#fff;border:none;border-radius:8px;padding:0 20px;
+  font-size:14px;font-weight:700;cursor:pointer;}
+.btn:hover{background:var(--pri-d);}
+.ok{background:#E9F7EF;border:1px solid #ABEBC6;color:var(--green);padding:10px 12px;
+  border-radius:8px;font-size:13px;margin-bottom:14px;}
+.err{background:#FDEDEC;border:1px solid #F5C6C0;color:var(--red);padding:8px 12px;
+  border-radius:8px;font-size:12.5px;margin-bottom:8px;}
+.hint{font-size:11px;color:var(--muted);margin-top:3px;line-height:1.4;}
+.who{font-size:13px;color:var(--muted);margin-bottom:14px;}
+.who b{color:var(--txt);}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">🚕 NYC Taxi</div>
+  <nav class="nav">
+    <a href="{% url 'panel' %}">Dashboard</a>
+    <a href="{% url 'raw_data' %}">Raw Data</a>
+    <a href="{% url 'data_entry' %}">Add Data</a>
+    <a href="{% url 'profile' %}" class="on">Profile</a>
+  </nav>
+  <form method="post" action="{% url 'logout' %}" class="lo">{% csrf_token %}
+    <button class="logout" type="submit">Log out</button>
+  </form>
+</div>
+
+<div class="main">
+
+  <!-- Contribution summary -->
+  <div class="card">
+    <h1>Profile</h1>
+    <div class="who">Signed in as <b>{{ request.user.username }}</b></div>
+    <h2>Your contribution</h2>
+    <div class="stats">
+      <div class="stat"><div class="n">{{ summary.added_total }}</div><div class="l">records added</div></div>
+      <div class="stat"><div class="n">{{ summary.added_active }}</div><div class="l">still active</div></div>
+      <div class="stat"><div class="n">{{ summary.deleted_by_me }}</div><div class="l">removed by you</div></div>
+      <div class="stat">
+        <div class="n" style="font-size:15px">{{ summary.last_added|date:"Y-m-d H:i"|default:"—" }}</div>
+        <div class="l">last added</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Change password -->
+  <div class="card">
+    <h2>Change password</h2>
+    {% if saved %}<div class="ok">✓ Password updated.</div>{% endif %}
+    {% if form.non_field_errors %}<div class="err">{{ form.non_field_errors|join:" " }}</div>{% endif %}
+    <form method="post">{% csrf_token %}
+      <div class="fg">
+        <label>Current password</label>
+        {{ form.old_password }}
+        {% if form.old_password.errors %}<div class="err">{{ form.old_password.errors|join:" " }}</div>{% endif %}
+      </div>
+      <div class="fg">
+        <label>New password</label>
+        {{ form.new_password1 }}
+        {% if form.new_password1.errors %}<div class="err">{{ form.new_password1.errors|join:" " }}</div>{% endif %}
+        <div class="hint">At least 8 characters, not entirely numeric.</div>
+      </div>
+      <div class="fg">
+        <label>New password (again)</label>
+        {{ form.new_password2 }}
+        {% if form.new_password2.errors %}<div class="err">{{ form.new_password2.errors|join:" " }}</div>{% endif %}
+      </div>
+      <button class="btn" type="submit">Update password</button>
+    </form>
+  </div>
+</div>
+</body>
+</html>

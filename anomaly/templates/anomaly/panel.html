@@ -1,0 +1,393 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NYC Taxi Dashboard</title>
+<!-- Plotly is loaded globally ONCE; chart fragments do not pull their own copy -->
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --pri:#1C7293; --pri-d:#155870; --pri-l:#EBF5FA; --acc:#F0B429;
+  --bg:#ECF0F5; --card:#FFFFFF; --brd:#DDE3EA; --txt:#2C3E50; --muted:#8C98A4;
+  --red:#C0392B; --green:#1E8449; --orange:#D68910; --purple:#7D3C98;
+  --shd:0 2px 12px rgba(0,0,0,.07); --rad:12px;
+}
+body { font-family: system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  background: var(--bg); color: var(--txt); font-size:14px; min-height:100vh; }
+
+/* Top bar */
+.topbar { background: var(--pri); color:#fff; padding:0 24px; height:56px;
+  display:flex; align-items:center; gap:14px; position:sticky; top:0; z-index:200;
+  box-shadow:0 2px 10px rgba(0,0,0,.2); }
+.topbar-icon { font-size:26px; line-height:1; }
+.topbar-name { font-size:17px; font-weight:700; }
+.topbar-sub  { font-size:11px; opacity:.7; margin-top:1px; }
+.topbar-pill { margin-left:auto; background:rgba(255,255,255,.15);
+  border:1px solid rgba(255,255,255,.25); color:#fff; font-size:11px; font-weight:600;
+  padding:4px 12px; border-radius:20px; letter-spacing:.3px; }
+.topbar-btn { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25);
+  color:#fff; font-size:11px; font-weight:600; padding:5px 12px; border-radius:8px;
+  cursor:pointer; transition:background .15s; white-space:nowrap; }
+.topbar-btn:hover { background:rgba(255,255,255,.22); }
+
+.main { padding:20px; max-width:1480px; margin:0 auto; }
+
+/* Panel card */
+.pcard { background:var(--card); border:1px solid var(--brd); border-radius:var(--rad);
+  box-shadow:var(--shd); margin-bottom:14px; overflow:hidden; transition:box-shadow .2s; }
+.pcard:focus-within { box-shadow:0 4px 20px rgba(28,114,147,.14); }
+.pcard-head { display:flex; align-items:center; gap:10px; padding:10px 16px;
+  background:#F5F8FB; border-bottom:1px solid var(--brd); cursor:pointer;
+  user-select:none; transition:background .15s; }
+.pcard-head:hover { background:#EBF2F7; }
+.pnum { width:24px; height:24px; border-radius:50%; background:var(--acc); color:#333;
+  display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; flex-shrink:0; }
+.pcard.active .pnum { background:var(--pri); color:#fff; }
+.plabel { font-size:13px; font-weight:700; white-space:nowrap; }
+.psummary { flex:1; font-size:12px; color:var(--muted); overflow:hidden;
+  text-overflow:ellipsis; white-space:nowrap; padding:0 8px; }
+.pmod-badge { font-size:10px; font-weight:700; padding:2px 8px; border-radius:10px;
+  text-transform:uppercase; letter-spacing:.4px; white-space:nowrap; display:none; }
+.pmod-badge.vis { display:inline-block; }
+.badge-chart    { background:#E8F4FD; color:var(--pri); }
+.badge-anomaly  { background:#FEF9E7; color:var(--orange); }
+.badge-forecast { background:#E9F7EF; color:var(--green); }
+.badge-raw      { background:#F4ECF7; color:var(--purple); }
+.ptoggle { font-size:11px; color:var(--muted); transition:transform .22s; flex-shrink:0; }
+.pcard.collapsed .ptoggle { transform:rotate(-90deg); }
+.pcard-body { padding:14px 16px 16px; }
+.pcard.collapsed .pcard-body { display:none; }
+
+/* Filter grid */
+.fgrid { display:flex; flex-wrap:wrap; gap:8px 10px; align-items:flex-end; }
+.fg { display:flex; flex-direction:column; gap:4px; }
+.fg label { font-size:10px; font-weight:700; color:var(--muted);
+  text-transform:uppercase; letter-spacing:.5px; white-space:nowrap; }
+.fg select, .fg input[type=number], .fg input[type=date], .fg input[type=time] {
+  height:34px; border:1px solid var(--brd); border-radius:7px; padding:0 9px;
+  font-size:13px; background:#fff; color:var(--txt); outline:none;
+  transition:border-color .15s, box-shadow .15s; }
+.fg select:focus, .fg input:focus { border-color:var(--pri); box-shadow:0 0 0 3px rgba(28,114,147,.11); }
+.sep { align-self:flex-end; padding-bottom:9px; color:var(--muted); font-size:15px; line-height:1; }
+
+.btn-draw { height:34px; background:var(--pri); color:#fff; border:none; border-radius:8px;
+  padding:0 18px; font-size:13px; font-weight:700; cursor:pointer; display:inline-flex;
+  align-items:center; gap:6px; transition:background .15s, transform .1s, box-shadow .15s; white-space:nowrap; }
+.btn-draw:hover { background:var(--pri-d); box-shadow:0 3px 10px rgba(28,114,147,.3); }
+.btn-draw:active { transform:scale(.97); }
+.btn-draw:disabled { opacity:.55; cursor:not-allowed; transform:none; box-shadow:none; }
+
+.gout { margin-top:12px; border-radius:8px; overflow:hidden; }
+.gout:empty { margin-top:0; }
+.gout-loading { margin-top:12px; height:88px; display:flex; align-items:center;
+  justify-content:center; gap:12px; background:#F7F9FB; border:1px dashed var(--brd);
+  border-radius:8px; color:var(--muted); font-size:13px; }
+.spinner { width:22px; height:22px; border:3px solid var(--brd); border-top-color:var(--pri);
+  border-radius:50%; animation:spin .65s linear infinite; flex-shrink:0; }
+@keyframes spin { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+
+<!-- Top bar -->
+<div class="topbar">
+  <div class="topbar-icon">🚕</div>
+  <div>
+    <div class="topbar-name">NYC Yellow Taxi &nbsp;·&nbsp; Analytics Dashboard</div>
+    <div class="topbar-sub">Anomaly Detection &amp; Time-Series Forecasting &nbsp;·&nbsp; 2017 data</div>
+  </div>
+  <nav style="display:flex;gap:4px;margin-left:8px">
+    <a href="{% url 'panel' %}"      style="color:#fff;text-decoration:none;font-weight:600;font-size:13px;padding:6px 12px;border-radius:8px;background:rgba(255,255,255,.22)">Dashboard</a>
+    <a href="{% url 'raw_data' %}"   style="color:#fff;text-decoration:none;font-weight:600;font-size:13px;padding:6px 12px;border-radius:8px;opacity:.85">Raw Data</a>
+    <a href="{% url 'data_entry' %}" style="color:#fff;text-decoration:none;font-weight:600;font-size:13px;padding:6px 12px;border-radius:8px;opacity:.85">Add Data</a>
+    <a href="{% url 'live' %}" style="color:#fff;text-decoration:none;font-weight:600;font-size:13px;padding:6px 12px;border-radius:8px;opacity:.85">Live</a>
+    <a href="{% url 'profile' %}"    style="color:#fff;text-decoration:none;font-weight:600;font-size:13px;padding:6px 12px;border-radius:8px;opacity:.85">Profile</a>
+  </nav>
+  <div class="topbar-pill">5 independent panels</div>
+  <form method="post" action="{% url 'logout' %}" style="display:inline; margin:0">
+  {% csrf_token %}
+  <button type="submit" class="topbar-btn" style="cursor:pointer">Log out</button>
+  </form>
+  <button class="topbar-btn" id="btn-toggle-all" onclick="toggleAll()">⊟ Collapse All</button>
+</div>
+
+<!-- Panels -->
+<div class="main">
+
+{% for pid in panels %}
+<div class="pcard active" id="panel-{{ pid }}">
+
+  <div class="pcard-head" onclick="togglePanel({{ pid }})">
+    <div class="pnum">{{ pid }}</div>
+    <div class="plabel">Panel&nbsp;{{ pid }}</div>
+    <div class="psummary" id="sum-{{ pid }}">— not drawn yet</div>
+    <span class="pmod-badge" id="badge-{{ pid }}"></span>
+    <div class="ptoggle">▼</div>
+  </div>
+
+  <div class="pcard-body">
+    <div class="fgrid">
+
+      <!-- Metric (backend: metric_list) -->
+      <div class="fg" style="min-width:140px">
+        <label>Metric</label>
+        <select name="metric" class="metric-select" onchange="updateSum({{ pid }})">
+          {% for m in metric_list %}
+          <option value="{{ m }}"{% if m == metric %} selected{% endif %}>{{ m }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Mode (backend: mode_list) -->
+      <div class="fg" style="min-width:110px">
+        <label>Mode</label>
+        <select name="mode" onchange="onMode(this, {{ pid }})">
+          {% for value, text in mode_list %}
+          <option value="{{ value }}"{% if value == mode %} selected{% endif %}>{{ text }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Anomaly model (conditional, backend: anomaly_list) -->
+      <div class="fg" style="min-width:140px;display:none" data-cond="anomaly_model">
+        <label>Anomaly Model</label>
+        <select name="anomaly_model">
+          {% for value, text in anomaly_list %}
+          <option value="{{ value }}"{% if value == anomaly_model %} selected{% endif %}>{{ text }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Forecast model (conditional, backend: forecast_list) -->
+      <div class="fg" style="min-width:120px;display:none" data-cond="forecast_model">
+        <label>Forecast Model</label>
+        <select name="forecast_model">
+          {% for value, text in forecast_list %}
+          <option value="{{ value }}"{% if value == forecast_model %} selected{% endif %}>{{ text }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Calibration (conditional, forecast mode only) -->
+      <div class="fg" style="min-width:110px;display:none" data-cond="calibration">
+        <label>Calibration</label>
+        <select name="calibration">
+          {% for value, text in calibration_list %}
+          <option value="{{ value }}"{% if value == calibration %} selected{% endif %}>{{ text }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Resolution (backend: resolution_list) -->
+      <div class="fg" style="min-width:100px">
+        <label>Resolution</label>
+        <select name="resolution" onchange="updateSum({{ pid }})">
+          {% for value, text in resolution_list %}
+          <option value="{{ value }}"{% if value == resolution %} selected{% endif %}>{{ text }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- Vendor (backend: vendor_list — distinct from DB) -->
+      <div class="fg" style="min-width:95px">
+        <label>Vendor</label>
+        <select name="vendor">
+          {% for value, text in vendor_list %}
+          <option value="{{ value }}"{% if value == vendor %} selected{% endif %}>{{ text }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <!-- k threshold -->
+      <div class="fg" style="width:80px">
+        <label>k threshold</label>
+        <input type="number" name="k" value="{{ k }}" step="0.1" min="0" style="width:80px">
+      </div>
+
+      <!-- Start -->
+      <div class="fg" style="min-width:130px">
+        <label>Start</label>
+        <input type="date" name="start_date" value="{{ start_date }}"
+               min="2017-01-01" onchange="updateSum({{ pid }})">
+      </div>
+      <div class="fg" style="width:90px">
+        <label>Time</label>
+        <input type="time" name="start_time" value="{{ start_time }}">
+      </div>
+
+      <div class="sep">→</div>
+
+      <!-- End -->
+      <div class="fg" style="min-width:130px">
+        <label>End</label>
+        <input type="date" name="end_date" value="{{ end_date }}"
+               min="2017-01-01" onchange="updateSum({{ pid }})">
+      </div>
+      <div class="fg" style="width:90px">
+        <label>Time</label>
+        <input type="time" name="end_time" value="{{ end_time }}">
+      </div>
+
+      <!-- Draw button -->
+      <div class="fg" style="min-width:auto">
+        <label style="visibility:hidden">.</label>
+        <button class="btn-draw" id="btn-{{ pid }}" onclick="draw({{ pid }})">
+          ▶&nbsp;Draw Chart
+        </button>
+      </div>
+
+    </div><!-- /fgrid -->
+
+    <div id="gout-{{ pid }}" class="gout"></div>
+
+  </div><!-- /pcard-body -->
+</div><!-- /pcard -->
+{% endfor %}
+
+</div><!-- /main -->
+
+<script>
+const CSRF = "{{ csrf_token }}";
+
+/* Metric label map (display only; the option value stays the backend key) */
+const METRIC_LABELS = {
+  sefer: 'Trips',
+  trip_duration_minutes: 'Duration (min)', 
+  trip_speed_mph: 'Speed (mph)',
+  price_per_distance: 'Price per Distance',
+  hourly_trip_volume: 'Hourly Trip Volume',
+  hourly_avg_speed: 'Hourly Avg Speed'
+};
+
+function metricLabel(val) {
+  if (METRIC_LABELS[val]) return METRIC_LABELS[val];
+  return val.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+function metricLabel(val) {
+  if (METRIC_LABELS[val]) return METRIC_LABELS[val];
+  return val.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+}
+document.querySelectorAll('select.metric-select option').forEach(opt => {
+  opt.textContent = metricLabel(opt.value);
+});
+
+/* Toggle panel open/close */
+function togglePanel(pid) {
+  const card = document.getElementById('panel-' + pid);
+  card.classList.toggle('collapsed');
+  if (!card.classList.contains('collapsed')) card.classList.add('active');
+}
+
+/* Show/hide conditional fields when the mode changes */
+function onMode(sel, pid) {
+  const card = document.getElementById('panel-' + pid);
+  const mode = sel.value;
+  card.querySelectorAll('[data-cond]').forEach(el => {
+    const c = el.dataset.cond;
+    const show = (c === 'anomaly_model'  && mode === 'anomaly')  ||
+                 (c === 'forecast_model' && mode === 'forecast') ||
+                 (c === 'calibration'    && mode === 'forecast');
+    el.style.display = show ? '' : 'none';
+  });
+  updateSum(pid);
+}
+
+/* Update the panel header summary */
+function updateSum(pid) {
+  const card = document.getElementById('panel-' + pid);
+  const g = n => { const e = card.querySelector(`[name="${n}"]`); return e ? e.value : ''; };
+  const mode  = g('mode');
+  const labels = { chart:'Chart', anomaly:'Anomaly', forecast:'Forecast', raw:'Raw' };
+  const badge = document.getElementById('badge-' + pid);
+
+  document.getElementById('sum-' + pid).textContent =
+    `${metricLabel(g('metric'))} · ${g('resolution')} · ${g('start_date')} → ${g('end_date')}`;
+
+  badge.className = `pmod-badge vis badge-${mode}`;
+  badge.textContent = labels[mode] || mode;
+}
+
+/* AJAX draw chart */
+async function draw(pid) {
+  const card = document.getElementById('panel-' + pid);
+  const btn  = document.getElementById('btn-' + pid);
+  const out  = document.getElementById('gout-' + pid);
+  const body = card.querySelector('.pcard-body');
+  const g    = n => { const e = card.querySelector(`[name="${n}"]`); return e ? e.value : ''; };
+
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner" style="width:14px;height:14px;border-width:2px"></span>&nbsp;Loading…';
+  out.innerHTML = '';
+  out.className = '';
+
+  const loader = document.createElement('div');
+  loader.className = 'gout-loading';
+  loader.id = 'loader-' + pid;
+  loader.innerHTML = '<div class="spinner"></div><span>Running query…</span>';
+  body.appendChild(loader);
+
+  const fd = new FormData();
+  fd.append('csrfmiddlewaretoken', CSRF);
+  fd.append('_ajax', '1');
+  ['metric','mode','anomaly_model','forecast_model','calibration','resolution',
+   'vendor','k','start_date','start_time','end_date','end_time']
+    .forEach(n => fd.append(n, g(n)));
+
+  try {
+    const res = await fetch(window.location.pathname, { method: 'POST', body: fd });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+
+    loader.remove();
+    out.className = 'gout';
+    injectHTML(out, data.html || '<p style="color:var(--red);padding:12px">Empty response</p>');
+    updateSum(pid);
+
+    card.classList.remove('collapsed');
+    card.classList.add('active');
+  } catch(e) {
+    loader.remove();
+    out.className = 'gout';
+    out.innerHTML = `<p style="color:var(--red);padding:12px">⚠️ Connection error: ${e.message}</p>`;
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '▶&nbsp;Draw Chart';
+  }
+}
+
+/* Re-execute <script> tags added via innerHTML (required for Plotly charts) */
+function injectHTML(el, html) {
+  el.innerHTML = html;
+  el.querySelectorAll('script').forEach(old => {
+    const s = document.createElement('script');
+    [...old.attributes].forEach(a => s.setAttribute(a.name, a.value));
+    s.textContent = old.textContent;
+    old.replaceWith(s);
+  });
+}
+
+/* Prepare every panel's summary on load */
+document.querySelectorAll('.pcard').forEach(card => {
+  const pid = card.id.replace('panel-', '');
+  updateSum(pid);
+});
+
+/* Expand / Collapse all */
+let _allCollapsed = false;
+function toggleAll() {
+  const cards = document.querySelectorAll('.pcard');
+  const btn = document.getElementById('btn-toggle-all');
+  if (!_allCollapsed) {
+    cards.forEach(c => c.classList.add('collapsed'));
+    btn.textContent = '⊞ Expand All';
+  } else {
+    cards.forEach(c => c.classList.remove('collapsed'));
+    btn.textContent = '⊟ Collapse All';
+  }
+  _allCollapsed = !_allCollapsed;
+}
+</script>
+</body>
+</html>

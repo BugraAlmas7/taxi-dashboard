@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>NYC Taxi · Live Forecast</title>
+<script src="https://cdn.plot.ly/plotly-2.35.2.min.js" charset="utf-8"></script>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+:root {
+  --pri:#1C7293; --pri-d:#155870; --pri-l:#EBF5FA; --acc:#F0B429;
+  --bg:#ECF0F5; --card:#FFFFFF; --brd:#DDE3EA; --txt:#2C3E50; --muted:#8C98A4;
+  --red:#C0392B; --green:#1E8449; --shd:0 2px 12px rgba(0,0,0,.07); --rad:12px;
+}
+body { font-family: system-ui,-apple-system,"Segoe UI",Arial,sans-serif;
+  background: var(--bg); color: var(--txt); font-size:14px; min-height:100vh; }
+
+/* Top bar (same language as the dashboard) */
+.topbar { background: var(--pri); color:#fff; padding:0 24px; height:56px;
+  display:flex; align-items:center; gap:14px; position:sticky; top:0; z-index:200;
+  box-shadow:0 2px 10px rgba(0,0,0,.2); }
+.topbar-icon { font-size:26px; line-height:1; }
+.topbar-name { font-size:17px; font-weight:700; }
+.topbar-sub  { font-size:11px; opacity:.7; margin-top:1px; }
+.topbar-pill { margin-left:auto; background:rgba(255,255,255,.15);
+  border:1px solid rgba(255,255,255,.25); color:#fff; font-size:11px; font-weight:600;
+  padding:4px 12px; border-radius:20px; letter-spacing:.3px; }
+.topbar-btn { background:rgba(255,255,255,.12); border:1px solid rgba(255,255,255,.25);
+  color:#fff; font-size:11px; font-weight:600; padding:5px 12px; border-radius:8px;
+  cursor:pointer; }
+.topbar-btn:hover { background:rgba(255,255,255,.22); }
+nav.tabs { display:flex; gap:4px; margin-left:8px; }
+nav.tabs a { color:#fff; text-decoration:none; font-weight:600; font-size:13px;
+  padding:6px 12px; border-radius:8px; opacity:.85; }
+nav.tabs a.active { background:rgba(255,255,255,.22); opacity:1; }
+
+.main { padding:18px; max-width:1500px; margin:0 auto; }
+
+/* Control bar */
+.ctl { background:var(--card); border:1px solid var(--brd); border-radius:var(--rad);
+  box-shadow:var(--shd); padding:12px 16px; display:flex; gap:16px; align-items:flex-end;
+  flex-wrap:wrap; margin-bottom:14px; }
+.ctl .f { display:flex; flex-direction:column; gap:4px; }
+.ctl label { font-size:11px; font-weight:700; color:var(--muted); letter-spacing:.4px;
+  text-transform:uppercase; }
+.ctl select, .ctl input { padding:6px 8px; border:1px solid var(--brd); border-radius:8px;
+  background:#fff; color:var(--txt); font-size:13px; }
+.ctl .go { background:var(--pri); color:#fff; border:0; padding:8px 18px; border-radius:8px;
+  font-weight:700; cursor:pointer; }
+.ctl .go:hover { background:var(--pri-d); }
+.ctl .stop { background:var(--red); color:#fff; border:0; padding:8px 16px; border-radius:8px;
+  font-weight:700; cursor:pointer; }
+.clock { margin-left:auto; font-weight:800; font-variant-numeric:tabular-nums;
+  color:var(--pri-d); font-size:15px; }
+
+/* 5-panel grid */
+.grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+.cell { background:var(--card); border:1px solid var(--brd); border-radius:var(--rad);
+  box-shadow:var(--shd); padding:8px 10px; }
+.cell:last-child:nth-child(odd) { grid-column:1 / -1; }   /* 5th spans full width */
+.cell h4 { margin:4px 6px 2px; font-size:13px; color:var(--txt); font-weight:700;
+  display:flex; justify-content:space-between; align-items:center; }
+.cell .wape { font-size:12px; font-weight:700; color:var(--pri); background:var(--pri-l);
+  padding:2px 8px; border-radius:20px; }
+.chart { width:100%; height:240px; }
+@media (max-width:900px){ .grid{ grid-template-columns:1fr; } .cell:last-child:nth-child(odd){ grid-column:auto; } }
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <div class="topbar-icon">🚕</div>
+  <div>
+    <div class="topbar-name">NYC Yellow Taxi &nbsp;·&nbsp; Live Forecast</div>
+    <div class="topbar-sub">Streaming · the forecast runs ahead of the actuals</div>
+  </div>
+  <nav class="tabs">
+    <a href="{% url 'panel' %}">Dashboard</a>
+    <a href="{% url 'raw_data' %}">Raw Data</a>
+    <a href="{% url 'data_entry' %}">Add Data</a>
+    <a href="{% url 'live' %}" class="active">Live</a>
+    <a href="{% url 'profile' %}">Profile</a>
+  </nav>
+  <div class="topbar-pill">5 live panels</div>
+  <form method="post" action="{% url 'logout' %}" style="display:inline;margin:0">
+    {% csrf_token %}
+    <button type="submit" class="topbar-btn">Log out</button>
+  </form>
+</div>
+
+<div class="main">
+  <div class="ctl">
+    <div class="f"><label>Model</label>
+      <select id="model">
+        {% for k,label in models %}<option value="{{k}}" {% if k == default_model %}selected{% endif %}>{{label}}</option>{% endfor %}
+      </select></div>
+    <div class="f">
+      <label>Resolution</label>
+      <select id="resolution">
+        <option value="1h" selected>1 hour</option>
+      </select>
+    </div>
+    <div class="f"><label>Vendor</label>
+      <select id="vendor"><option value="hepsi">All</option>
+        <option value="1">Vendor 1</option><option value="2">Vendor 2</option></select></div>
+    <div class="f"><label>Start</label>
+      <input id="start" type="text" value="{{ start }}" size="15"></div>
+    <div class="f"><label>Horizon (bin)</label>
+      <input id="horizon" type="number" value="{{ horizon }}" min="6" max="240" style="width:70px"></div>
+    <div class="f"><label>Speed</label>
+      <select id="speed"><option value="1500">Slow</option>
+        <option value="800" selected>Normal</option><option value="350">Fast</option></select></div>
+    <button class="go" id="btnStart">▶ Start</button>
+    <button class="stop" id="btnStop">■ Stop</button>
+    <span class="clock" id="clock">—</span>
+  </div>
+
+  <div class="grid" id="grid">
+    {% for m in metrics %}
+    <div class="cell">
+      <h4><span>{{ m }}</span><span class="wape" id="wape-{{ forloop.counter0 }}"></span></h4>
+      <div class="chart" id="chart-{{ forloop.counter0 }}" data-metric="{{ m }}"></div>
+    </div>
+    {% endfor %}
+  </div>
+</div>
+
+<script>
+const METRICS = ["sefer", "total_amount"];
+const RES_SECONDS = {"1h":3600};
+let timer = null, nowStr = null;
+
+function bump(nowIso, secs){
+  const d = new Date(nowIso.replace(" ", "T") + ":00Z");
+  d.setUTCSeconds(d.getUTCSeconds() + secs);
+  const p = n => String(n).padStart(2,"0");
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth()+1)}-${p(d.getUTCDate())} `
+       + `${p(d.getUTCHours())}:${p(d.getUTCMinutes())}`;
+}
+
+async function tickOne(idx){
+  const div = document.getElementById("chart-"+idx);
+  const metric = div.dataset.metric;
+  const q = new URLSearchParams({
+    model: document.getElementById("model").value, metric,
+    resolution: document.getElementById("resolution").value,
+    vendor: document.getElementById("vendor").value,
+    now: nowStr, horizon: document.getElementById("horizon").value, 
+    show: 180, 
+    context: 400  // <-- the magic touch that eases the database load
+  });
+  
+  let d;
+  try { 
+      d = await (await fetch("tick?" + q.toString())).json(); 
+  } catch(e){ 
+      return; 
+  }
+  
+  const a = d.actual, f = d.forecast;
+  
+  // NEW WAPE LOGIC: use the value coming straight from the API
+  const wapeElement = document.getElementById("wape-"+idx);
+  if (d.lagged_wape !== undefined && d.lagged_wape !== null) {
+      const formattedWape = (d.lagged_wape * 100).toFixed(1);
+      wapeElement.textContent = `WAPE %${formattedWape}`;
+      
+      // Optional: warn in red if the error rate is above 20%
+      wapeElement.style.color = d.lagged_wape > 0.20 ? "var(--red)" : "var(--pri)";
+  } else {
+      wapeElement.textContent = "WAPE --%";
+      wapeElement.style.color = "var(--pri)";
+  }
+
+  Plotly.react(div, [
+    {x:a.x, y:a.y, mode:"lines", name:"actual", line:{color:"#111", width:1.6}},
+    {x:f.x, y:f.y, mode:"lines", name:"forecast", line:{color:"#1C7293", width:2, dash:"dot"}},
+  ], { margin:{l:44,r:8,t:6,b:26}, showlegend:false, xaxis:{type:"date"}, template:"plotly_white",
+       shapes:[{type:"line", x0:nowStr, x1:nowStr, yref:"paper", y0:0, y1:1,
+                line:{color:"#C0392B", width:1, dash:"dash"}}] },
+     {displayModeBar:false, responsive:true});
+}
+
+let isRunning = false;
+
+async function tick() {
+    document.getElementById("clock").textContent = "⏱ " + nowStr;
+
+    // 1. Fetch the actual and the pure-ahead forecast for the current time
+    await Promise.all(METRICS.map((_, i) => tickOne(i)));
+
+    // 2. Advance the clock by the selected resolution (e.g. 1 hour)
+    const dk = RES_SECONDS[document.getElementById("resolution").value] || 3600;
+    const nextNowStr = bump(nowStr, dk);
+
+    // 3. MIDNIGHT CHECK (00:00) - the system pauses here to train
+    if (nextNowStr.endsWith("00:00")) {
+        // show a status message so the user doesn't think it froze
+        document.getElementById("clock").textContent = "⏱ " + nextNowStr + " (Isolation & Model Training...)";
+        
+        // the day to train on is the one that just finished
+        const targetDay = nowStr.split(" ")[0]; 
+        
+        const params = new URLSearchParams({
+            day: targetDay,
+            model: document.getElementById("model").value,
+            resolution: document.getElementById("resolution").value,
+            vendor: document.getElementById("vendor").value,
+            start: document.getElementById("start").value,
+            source: "trip2017" // the stream test source from config.py
+        });
+        
+        try {
+            // triggers SESSION.retrain in live_session.py
+            // This is synchronous; we await until the backend cleans the data and updates the model.
+            await fetch("retrain?" + params.toString());
+        } catch (e) {
+            console.error("Midnight training failed:", e);
+        }
+    }
+    
+    // Once training is done (or the day didn't change), commit the clock
+    nowStr = nextNowStr;
+}
+
+// Safe recursive setTimeout loop instead of setInterval
+async function stepLoop() {
+    if (!isRunning) return; // break the loop if Stop was pressed
+    
+    await tick(); // wait for a tick to fully finish (including its fetch)
+    
+    // move to the next step after it finishes
+    if (isRunning) {
+        const speed = parseInt(document.getElementById("speed").value);
+        setTimeout(stepLoop, speed);
+    }
+}
+
+document.getElementById("btnStart").onclick = () => {
+    if (isRunning) return;
+    isRunning = true;
+    
+    // if nowStr is empty, take it from the start box in the UI
+    if (!nowStr) nowStr = document.getElementById("start").value;
+    
+    // start the infinite async loop
+    stepLoop();
+};
+
+document.getElementById("btnStop").onclick = () => { 
+    isRunning = false; 
+};
+</script>
+</body>
+</html>

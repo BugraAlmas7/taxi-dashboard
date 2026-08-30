@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Raw Data · NYC Taxi Dashboard</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--pri:#1C7293;--pri-d:#155870;--bg:#ECF0F5;--card:#fff;--brd:#DDE3EA;
+  --txt:#2C3E50;--muted:#8C98A4;--acc:#F0B429;--green:#1E8449;}
+body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:var(--bg);
+  color:var(--txt);font-size:14px;min-height:100vh;}
+.topbar{background:var(--pri);color:#fff;padding:0 24px;height:56px;display:flex;
+  align-items:center;gap:18px;position:sticky;top:0;z-index:200;box-shadow:0 2px 10px rgba(0,0,0,.2);}
+.topbar .brand{font-weight:800;}
+.nav{display:flex;gap:4px;margin-left:8px;}
+.nav a{color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:6px 12px;
+  border-radius:8px;opacity:.85;}
+.nav a:hover{background:rgba(255,255,255,.14);opacity:1;}
+.nav a.on{background:rgba(255,255,255,.22);opacity:1;}
+.topbar form{margin-left:auto;}
+.logout{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;
+  font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;}
+.main{padding:20px;max-width:1480px;margin:0 auto;}
+.card{background:var(--card);border:1px solid var(--brd);border-radius:12px;
+  box-shadow:0 2px 12px rgba(0,0,0,.06);padding:16px 18px;margin-bottom:16px;}
+h1{font-size:18px;color:var(--pri-d);margin-bottom:4px;}
+.sub{font-size:12px;color:var(--muted);margin-bottom:14px;}
+.filter{display:flex;flex-direction:column;gap:14px;}
+.filter-row{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end;}
+.fg{display:flex;flex-direction:column;gap:4px;}
+.fg label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.fg input,.fg select{height:34px;border:1px solid var(--brd);border-radius:7px;padding:0 9px;font-size:13px;background:#fff;}
+.advanced-filters{display:grid;grid-template-columns:repeat(auto-fill, minmax(220px, 1fr));gap:10px;border-top:1px solid var(--brd);padding-top:12px;}
+.filter-box{background:#F5F8FB;border:1px solid var(--brd);padding:8px 10px;border-radius:8px;display:flex;flex-direction:column;gap:6px;}
+.filter-box-header{display:flex;align-items:center;gap:6px;font-weight:700;font-size:12px;color:var(--pri-d);}
+.range-inputs{display:flex;gap:6px;}
+.range-inputs input,.filter-box select{width:100%;height:30px;border:1px solid var(--brd);border-radius:6px;padding:0 6px;font-size:12px;background:#fff;}
+.hint{font-size:10px;color:var(--muted);}
+.btn{height:34px;background:var(--pri);color:#fff;border:none;border-radius:8px;padding:0 16px;
+  font-size:13px;font-weight:700;cursor:pointer;text-decoration:none;display:inline-flex;align-items:center;}
+.btn:hover{background:var(--pri-d);}
+.btn-csv{background:var(--green);}
+.btn-csv:hover{background:#166838;}
+.tbar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px;flex-wrap:wrap;}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--brd);border-radius:10px;}
+table{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap;}
+th,td{padding:8px 10px;border-bottom:1px solid #eef2f5;text-align:left;}
+th{background:#F5F8FB;color:var(--pri-d);font-weight:700;position:sticky;top:0;}
+tr:hover td{background:#FAFCFE;}
+.src-manual{color:var(--acc);font-weight:700;}
+.src-raw{color:var(--muted);}
+.pager{display:flex;align-items:center;justify-content:center;gap:8px;margin-top:16px;flex-wrap:wrap;}
+.pager a,.pager span{padding:6px 12px;border:1px solid var(--brd);border-radius:8px;
+  text-decoration:none;color:var(--pri-d);font-size:13px;font-weight:600;background:#fff;}
+.pager a:hover{background:var(--pri);color:#fff;border-color:var(--pri);}
+.pager .cur{background:var(--pri);color:#fff;border-color:var(--pri);}
+.pager .dis{opacity:.4;pointer-events:none;}
+.jump{display:flex;gap:6px;align-items:center;margin-left:8px;font-size:13px;color:var(--muted);}
+.jump input[type=number]{width:64px;height:30px;border:1px solid var(--brd);border-radius:7px;padding:0 8px;}
+.empty{padding:24px;text-align:center;color:var(--muted);}
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">🚕 NYC Taxi</div>
+  <nav class="nav">
+    <a href="{% url 'panel' %}">Dashboard</a>
+    <a href="{% url 'raw_data' %}" class="on">Raw Data</a>
+    <a href="{% url 'data_entry' %}">Add Data</a>
+    <a href="{% url 'activity' %}">Activity</a>
+    <a href="{% url 'profile' %}">Profile</a>
+  </nav>
+  <form method="post" action="{% url 'logout' %}">{% csrf_token %}
+    <button class="logout" type="submit">Log out</button>
+  </form>
+</div>
+
+<div class="main">
+  <div class="card">
+    <h1>Raw Data</h1>
+    <div class="sub">2017 records + manually added rows · a checkbox turns a column ON (shown + used for filtering); OFF = hidden & ignored.</div>
+    <form method="get" class="filter">
+      <div class="filter-row">
+        <div class="fg">
+          <label>Start</label>
+          <input type="datetime-local" name="start" value="{{ start }}" min="2017-01-01T00:00">
+        </div>
+        <div class="fg">
+          <label>End</label>
+          <input type="datetime-local" name="end" value="{{ end }}" min="2017-01-01T00:00">
+        </div>
+        <div class="fg">
+          <label>Per page</label>
+          <select name="per_page">
+            {% for ps in page_sizes %}
+            <option value="{{ ps }}" {% if ps == per_page %}selected{% endif %}>{{ ps }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <button class="btn" type="submit">Apply Filters</button>
+      </div>
+
+      <div class="advanced-filters">
+        <div class="filter-box">
+          <div class="filter-box-header">
+            <input type="checkbox" name="col_source" value="1" {% if show_source %}checked{% endif %}>
+            <span>Source</span>
+          </div>
+          <select name="source_filter">
+            <option value="all"    {% if source_filter == 'all' %}selected{% endif %}>All</option>
+            <option value="raw"    {% if source_filter == 'raw' %}selected{% endif %}>Raw</option>
+            <option value="manual" {% if source_filter == 'manual' %}selected{% endif %}>Manual</option>
+          </select>
+          <span class="hint">filter applies only if checked</span>
+        </div>
+
+        <div class="filter-box">
+          <div class="filter-box-header">
+            <input type="checkbox" name="col_added_by" value="1" {% if show_added_by %}checked{% endif %}>
+            <span>Added By</span>
+          </div>
+          <select name="added_by_filter">
+            <option value="all">All Users</option>
+            {% for u in all_users %}
+              <option value="{{ u.id }}" {% if added_by_filter == u.id|stringformat:'s' %}selected{% endif %}>{{ u.username }}</option>
+            {% endfor %}
+          </select>
+          <span class="hint">filter applies only if checked</span>
+        </div>
+
+        {% for key, label in raw_columns_full %}
+        <div class="filter-box">
+          <div class="filter-box-header">
+            <input type="checkbox" name="cols" value="{{ key }}" {% if key in active_cols %}checked{% endif %}>
+            <span>{{ label }}</span>
+          </div>
+          {% if key == 'vendorid' %}
+          <select name="vendor_filter">
+            <option value="all" {% if vendor_filter == 'all' %}selected{% endif %}>All</option>
+            <option value="1"   {% if vendor_filter == '1' %}selected{% endif %}>1</option>
+            <option value="2"   {% if vendor_filter == '2' %}selected{% endif %}>2</option>
+          </select>
+          {% elif key != 'tpep_pickup_datetime' %}
+          <div class="range-inputs">
+            <input type="number" step="any" min="0" name="min_{{ key }}" placeholder="Min"
+                   value="{% for k, v in min_vals.items %}{% if k == key %}{{ v }}{% endif %}{% endfor %}">
+            <input type="number" step="any" min="0" name="max_{{ key }}" placeholder="Max"
+                   value="{% for k, v in max_vals.items %}{% if k == key %}{{ v }}{% endif %}{% endfor %}">
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <div class="tbar">
+      <div class="sub" style="margin:0">
+        {{ page.paginator.count }} row(s) · {{ per_page }} per page
+      </div>
+      <a class="btn btn-csv" href="?{{ querystring }}&export=csv">⬇ Download CSV</a>
+    </div>
+
+    {% if rows %}
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>#</th>
+            {% for c in visible_columns %}<th>{{ c.1 }}</th>{% endfor %}
+            {% if show_source %}<th>source</th>{% endif %}
+            {% if show_added_by %}<th>added by</th>{% endif %}
+          </tr>
+        </thead>
+        <tbody>
+          {% for r in rows %}
+          <tr>
+            <td>{{ r.index }}</td>
+            {% for cell in r.cells %}<td>{{ cell|default_if_none:"" }}</td>{% endfor %}
+            {% if show_source %}
+              <td class="{% if r.source == 'manual' %}src-manual{% else %}src-raw{% endif %}">{{ r.source }}</td>
+            {% endif %}
+            {% if show_added_by %}<td>{{ r.added_by }}</td>{% endif %}
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+
+    <div class="pager">
+      {% if page.has_previous %}
+        <a href="?{{ querystring }}&page=1">« First</a>
+        <a href="?{{ querystring }}&page={{ page.previous_page_number }}">‹ Prev</a>
+      {% else %}
+        <span class="dis">« First</span><span class="dis">‹ Prev</span>
+      {% endif %}
+      <span class="cur">Page {{ page.number }} / {{ page.paginator.num_pages }}</span>
+      {% if page.has_next %}
+        <a href="?{{ querystring }}&page={{ page.next_page_number }}">Next ›</a>
+        <a href="?{{ querystring }}&page={{ page.paginator.num_pages }}">Last »</a>
+      {% else %}
+        <span class="dis">Next ›</span><span class="dis">Last »</span>
+      {% endif %}
+      <form method="get" class="jump">
+        {% for k, values in request.GET.lists %}{% if k != 'page' %}{% for v in values %}<input type="hidden" name="{{ k }}" value="{{ v }}">{% endfor %}{% endif %}{% endfor %}
+        Go to <input type="number" name="page" min="1" max="{{ page.paginator.num_pages }}" value="{{ page.number }}">
+        <button class="btn" type="submit">Go</button>
+      </form>
+    </div>
+    {% else %}
+      <div class="empty">No records in this range matching criteria.</div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>

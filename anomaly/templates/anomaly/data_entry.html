@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Add Data · NYC Taxi Dashboard</title>
+<style>
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{--pri:#1C7293;--pri-d:#155870;--bg:#ECF0F5;--card:#fff;--brd:#DDE3EA;
+  --txt:#2C3E50;--muted:#8C98A4;--acc:#F0B429;--red:#C0392B;--green:#1E8449;}
+body{font-family:system-ui,-apple-system,"Segoe UI",Arial,sans-serif;background:var(--bg);
+  color:var(--txt);font-size:14px;min-height:100vh;}
+.topbar{background:var(--pri);color:#fff;padding:0 24px;height:56px;display:flex;
+  align-items:center;gap:18px;position:sticky;top:0;z-index:200;box-shadow:0 2px 10px rgba(0,0,0,.2);}
+.topbar .brand{font-weight:800;}
+.nav{display:flex;gap:4px;margin-left:8px;}
+.nav a{color:#fff;text-decoration:none;font-size:13px;font-weight:600;padding:6px 12px;
+  border-radius:8px;opacity:.85;}
+.nav a:hover{background:rgba(255,255,255,.14);opacity:1;}
+.nav a.on{background:rgba(255,255,255,.22);opacity:1;}
+.topbar form.lo{margin-left:auto;}
+.logout{background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.25);color:#fff;
+  font-size:12px;font-weight:600;padding:6px 12px;border-radius:8px;cursor:pointer;}
+.main{padding:20px;max-width:1480px;margin:0 auto;}
+.card{background:var(--card);border:1px solid var(--brd);border-radius:12px;
+  box-shadow:0 2px 12px rgba(0,0,0,.06);padding:16px 18px;margin-bottom:16px;}
+h1{font-size:18px;color:var(--pri-d);margin-bottom:4px;}
+h2{font-size:15px;color:var(--pri-d);margin-bottom:10px;}
+.sub{font-size:12px;color:var(--muted);margin-bottom:14px;}
+.grid{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end;}
+.fg{display:flex;flex-direction:column;gap:4px;}
+.fg label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.5px;}
+.fg input,.fg select{height:34px;border:1px solid var(--brd);border-radius:7px;padding:0 9px;font-size:13px;min-width:130px;}
+.btn{height:34px;background:var(--pri);color:#fff;border:none;border-radius:8px;padding:0 16px;
+  font-size:13px;font-weight:700;cursor:pointer;}
+.btn:hover{background:var(--pri-d);}
+.btn-del{height:28px;background:#fff;color:var(--red);border:1px solid var(--red);border-radius:7px;
+  padding:0 10px;font-size:12px;font-weight:700;cursor:pointer;}
+.btn-del:hover{background:var(--red);color:#fff;}
+.btn-edit {height:28px;background:#fff;color:#D68910;border:1px solid #D68910;border-radius:7px;padding:0 10px;font-size:12px;font-weight:700;cursor:pointer;}
+.btn-edit:hover {background:#D68910;color:#fff;}
+.tbl-wrap{overflow-x:auto;border:1px solid var(--brd);border-radius:10px;}
+table{border-collapse:collapse;width:100%;font-size:12.5px;white-space:nowrap;}
+th,td{padding:8px 10px;border-bottom:1px solid #eef2f5;text-align:left;}
+th{background:#F5F8FB;color:var(--pri-d);font-weight:700;}
+.empty{padding:20px;text-align:center;color:var(--muted);}
+</style>
+<script>
+    function fillEditForm(btn) {
+        const actionInput = document.getElementById('form-action');
+        const entryIdInput = document.getElementById('form-entry-id');
+        const subBtn = document.getElementById('form-submit-btn');
+        const cancelBtn = document.getElementById('form-cancel-btn');
+
+        if(actionInput) actionInput.value = 'edit';
+        if(entryIdInput) entryIdInput.value = btn.dataset.id;
+        
+        if(subBtn) {
+            subBtn.textContent = 'Update record';
+            subBtn.style.background = '#D68910';
+        }
+        if(cancelBtn) cancelBtn.style.display = 'inline-block';
+
+        const setVal = (name, val) => {
+            const el = document.querySelector(`input[name="${name}"]`);
+            if(el) {
+                if (typeof val === 'string') {
+                    el.value = val.replace(',', '.');
+                } else {
+                    el.value = val;
+                }
+            }
+        };
+
+        setVal('tpep_pickup_datetime', btn.dataset.pickup);
+        setVal('vendorid', btn.dataset.vendor);
+        setVal('passenger_count', btn.dataset.pass);
+        setVal('trip_distance', btn.dataset.dist);
+        setVal('fare_amount', btn.dataset.fare);
+        setVal('tip_amount', btn.dataset.tip);
+        setVal('tolls_amount', btn.dataset.tolls);
+        setVal('total_amount', btn.dataset.total);
+        setVal('trip_duration_minutes', btn.dataset.dur);
+
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function cancelEdit() {
+        const actionInput = document.getElementById('form-action');
+        const entryIdInput = document.getElementById('form-entry-id');
+        const subBtn = document.getElementById('form-submit-btn');
+        const cancelBtn = document.getElementById('form-cancel-btn');
+
+        if(actionInput) actionInput.value = 'add';
+        if(entryIdInput) entryIdInput.value = '';
+        
+        if(subBtn) {
+            subBtn.textContent = '+ Add record';
+            subBtn.style.background = 'var(--pri)';
+        }
+        if(cancelBtn) cancelBtn.style.display = 'none';
+
+        document.querySelectorAll('.grid input').forEach(inp => {
+           if(inp.type !== 'hidden' && inp.type !== 'submit' && inp.type !== 'button') {
+               inp.value = '';
+           }
+        });
+    }
+
+    // --- Live Auto-Calculator ---
+    document.addEventListener("DOMContentLoaded", function() {
+        const distInput = document.querySelector('input[name="trip_distance"]');
+        const durInput = document.querySelector('input[name="trip_duration_minutes"]');
+        const speedInput = document.querySelector('input[name="trip_speed_mph"]');
+        
+        const totalInput = document.querySelector('input[name="total_amount"]');
+        const priceDistInput = document.querySelector('input[name="price_per_distance"]');
+
+        function calculateLive() {
+            const dist = parseFloat(distInput ? distInput.value : NaN);
+            const dur = parseFloat(durInput ? durInput.value : NaN);
+            const total = parseFloat(totalInput ? totalInput.value : NaN);
+
+            if (!isNaN(dist) && !isNaN(dur) && dur > 0 && speedInput) {
+                speedInput.value = (dist / (dur / 60)).toFixed(2);
+            } else if (speedInput) {
+                speedInput.value = "";
+            }
+
+            if (!isNaN(dist) && !isNaN(total) && dist > 0 && priceDistInput) {
+                priceDistInput.value = (total / dist).toFixed(2);
+            } else if (priceDistInput) {
+                priceDistInput.value = "";
+            }
+        }
+
+        if (distInput) distInput.addEventListener("input", calculateLive);
+        if (durInput) durInput.addEventListener("input", calculateLive);
+        if (totalInput) totalInput.addEventListener("input", calculateLive);
+    });
+</script>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand">🚕 NYC Taxi</div>
+  <nav class="nav">
+    <a href="{% url 'panel' %}">Dashboard</a>
+    <a href="{% url 'raw_data' %}">Raw Data</a>
+    <a href="{% url 'data_entry' %}" class="on">Add Data</a>
+    <a href="{% url 'activity' %}">Activity</a>
+    <a href="{% url 'profile' %}">Profile</a>
+  </nav>
+  <form method="post" action="{% url 'logout' %}" class="lo">{% csrf_token %}
+    <button class="logout" type="submit">Log out</button>
+  </form>
+</div>
+
+<div class="main">
+    {% if imported %}
+    <div class="card" style="background:#E9F7EF;border-color:#ABEBC6;color:#1E8449;font-weight:600">
+      ✓ Imported {{ imported }} record(s) from CSV.
+    </div>
+    {% endif %}
+
+  <div class="card">
+    <h1>Add Data</h1>
+    <div class="card">
+      <h2>Bulk import (CSV)</h2>
+      <div class="sub">
+        Upload a CSV whose header row uses these column names:
+        <code>tpep_pickup_datetime, vendorid, passenger_count, trip_distance,
+        fare_amount, tip_amount, tolls_amount, total_amount, trip_duration_minutes</code>.
+        Only <b>tpep_pickup_datetime</b> is required (format: YYYY-MM-DD HH:MM).
+      </div>
+      <form method="post" enctype="multipart/form-data" class="grid">{% csrf_token %}
+        <input type="hidden" name="action" value="import">
+        <input type="file" name="csv_file" accept=".csv" required
+               style="height:34px;border:1px solid var(--brd);border-radius:7px;padding:5px 9px;font-size:13px;background:#fff">
+        <button class="btn" type="submit">Import CSV</button>
+      </form>
+    </div>
+    <div class="sub">Manually add trip records. The backend engine automatically calculates Speed, Price/Dist, and Hourly Volumes.</div>
+    <form method="post">{% csrf_token %}
+      <input type="hidden" name="action" id="form-action" value="add">
+      <input type="hidden" name="entry_id" id="form-entry-id" value="">
+      
+      <div class="grid">
+        {% for name, label, itype in fields %}
+        <div class="fg">
+          <label>{{ label }}{% if name == 'tpep_pickup_datetime' %} *{% endif %}</label>
+          <input type="{{ itype }}" name="{{ name }}"
+                 {% if name == 'tpep_pickup_datetime' %}required min="2017-01-01T00:00"{% endif %}
+                 {% if itype == 'number' %}step="any"{% endif %}>
+        </div>
+        {% endfor %}
+        
+        <div class="fg" style="min-width:auto; flex-direction:row; gap:8px">
+            <label style="visibility:hidden">.</label>
+            <button class="btn" type="submit" id="form-submit-btn">+ Add record</button>
+            <button class="btn-del" type="button" id="form-cancel-btn" style="display:none; height:34px; padding:0 16px" onclick="cancelEdit()">Cancel</button>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>Entries — Active Records</h2>
+    <form method="get" class="grid" style="margin-bottom:14px">
+      <div class="fg">
+        <label>Member</label>
+        <select name="member">
+          <option value="">All members</option>
+          {% for u in members %}
+          <option value="{{ u.id }}"{% if u.id|stringformat:'s' == member %} selected{% endif %}>{{ u.username }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <button class="btn" type="submit">Filter</button>
+    </form>
+
+    {% if entries %}
+    <div class="tbl-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th><th>pickup</th><th>vendor</th><th>passengers</th><th>distance</th>
+            <th>fare</th><th>total</th><th>duration</th><th>speed</th><th>price/dist</th>
+            <th>h. volume</th><th>h. avg speed</th>
+            <th>added by</th><th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for e in entries %}
+          <tr>
+            {% for cell in e.cells %}
+            <td>{{ cell|default_if_none:"" }}</td>
+            {% endfor %}
+            
+            <td>
+                {% if request.user.is_superuser or request.user == e.added_by %}
+                <div style="display:flex; gap:6px;">
+                  <button type="button" class="btn-edit" 
+                          data-id="{{ e.id }}"
+                          data-pickup="{{ e.tpep_pickup_datetime|date:'Y-m-d\TH:i' }}"
+                          data-vendor="{{ e.vendorid|default_if_none:'' }}"
+                          data-pass="{{ e.passenger_count|default_if_none:'' }}"
+                          data-dist="{{ e.trip_distance|default_if_none:'' }}"
+                          data-fare="{{ e.fare_amount|default_if_none:'' }}"
+                          data-tip="{{ e.tip_amount|default_if_none:'' }}"
+                          data-tolls="{{ e.tolls_amount|default_if_none:'' }}"
+                          data-total="{{ e.total_amount|default_if_none:'' }}"
+                          data-dur="{{ e.trip_duration_minutes|default_if_none:'' }}"
+                          onclick="fillEditForm(this)">Edit</button>
+                  <form method="post" style="margin:0">{% csrf_token %}
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="id" value="{{ e.id }}">
+                    <button class="btn-del" type="submit">Remove</button>
+                  </form>
+                </div>
+                {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <div class="empty">No entries yet.</div>
+    {% endif %}
+  </div>
+</div>
+</body>
+</html>
