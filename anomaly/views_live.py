@@ -16,12 +16,11 @@ from django.contrib.auth.decorators import login_required
 
 from .streaming.live_forecast import live_forecast
 
-# models selectable in the live panel (live variants + a static baseline to compare)
+# models selectable in the live panel — LIVE variants only (the static
+# baseline / Optuna models live on the main dashboard, not here)
 LIVE_MODELS = [
     ("xgboost_stream", "XGBoost (Live)"),
     ("chronos_stream", "Chronos-2 (Live)"),
-    ("xgboost", "XGBoost (baseline)"),
-    ("chronos_ft_optuna", "Chronos-2 (Optuna)"),
 ]
 # only demand + revenue are meaningful to forecast live
 LIVE_METRICS = ["sefer", "total_amount"]
