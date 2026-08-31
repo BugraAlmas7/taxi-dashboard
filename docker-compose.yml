@@ -30,6 +30,9 @@ services:
       # Default target is the bundled `db` service. Override in .env to point at an
       # external Postgres (e.g. POSTGRES_HOST=172.29.128.1 for a Windows host from WSL).
       - POSTGRES_HOST=${POSTGRES_HOST:-db}
+      # public-tunnel support (cloudflared / ngrok): override in .env when exposing
+      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0}
+      - DJANGO_CSRF_TRUSTED_ORIGINS=${DJANGO_CSRF_TRUSTED_ORIGINS:-}
       - POSTGRES_PORT=${POSTGRES_PORT:-5432}
       # optional one-time auto data load on startup (see .env.example)
       - RUN_SETUP_DATA=${RUN_SETUP_DATA:-0}

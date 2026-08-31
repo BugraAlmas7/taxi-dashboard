@@ -27,6 +27,11 @@ DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
 
 ALLOWED_HOSTS = os.environ.get('DJANGO_ALLOWED_HOSTS', 'localhost,127.0.0.1,0.0.0.0').split(',')
 
+# Needed when serving through an HTTPS tunnel/proxy (cloudflared, ngrok, ...):
+# Django rejects cross-origin POSTs (login!) unless the public origin is trusted.
+CSRF_TRUSTED_ORIGINS = [o.strip() for o in
+                        os.environ.get('DJANGO_CSRF_TRUSTED_ORIGINS', '').split(',') if o.strip()]
+
 
 # Application definition
 
