@@ -216,11 +216,13 @@ def live_forecast(model_key, metric, resolution, vendor, now, horizon=60,
     # 2. Match past forecasts against the actuals (tail) we now have
     y_true = []
     y_pred = []
+    past_x = []
     for t_val, a_val in zip(tail["zaman"], tail["deger"]):
         t_str = str(t_val)
         if t_str in _LAGGED_FORECASTS[cache_key]:
             y_true.append(float(a_val))
             y_pred.append(_LAGGED_FORECASTS[cache_key][t_str])
+            past_x.append(t_str)
 
     # 3. Lagged WAPE computation
     lagged_wape = None
@@ -236,6 +238,11 @@ def live_forecast(model_key, metric, resolution, vendor, now, horizon=60,
         "actual": {"x": [str(t) for t in tail["zaman"]],
                    "y": [float(v) for v in tail["deger"]]},
         "forecast": {"x": [], "y": []},
+        # the FROZEN forecast trail: for every past bin, the last pure-ahead
+        # prediction made for it (kept in _LAGGED_FORECASTS). The frontend draws
+        # this as a persistent dotted line, so old forecasts are never erased —
+        # and it is exactly the set of pairs lagged_wape is computed on.
+        "forecast_past": {"x": past_x, "y": [float(v) for v in y_pred]},
         "lagged_wape": lagged_wape  # send the already-computed WAPE straight to the frontend
     }
     

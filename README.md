@@ -33,7 +33,7 @@ Chronos-2 / TimesFM (Hugging Face + PEFT/LoRA) · Plotly · Docker.
 
 ## Prerequisites
 
-- **Docker** + Docker Compose. That's it — a **PostgreSQL 16** instance is
+- **Docker** + Docker Compose. That's it — a **PostgreSQL 18** instance is
   bundled as the `db` service in `docker-compose.yml`, so no external database is
   required. (You can still point at an external Postgres via `.env`; see Notes.)
 - Internet access for the **image build** (pip installs), and for the **first**

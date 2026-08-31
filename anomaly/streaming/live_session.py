@@ -60,16 +60,20 @@ class _LiveSession:
         # hundred k rows) to keep RAM bounded — 30 days at once would be ~10M rows → OOM.
         start_dt = datetime.strptime(start, "%Y-%m-%d %H:%M")
         total = 0
+        total_anom = 0
+        total_clean = 0
         for d in range(prewarm_days, 0, -1):
             lo = start_dt - timedelta(days=d)
             hi = start_dt - timedelta(days=d - 1)
             raw = self._pull(train_source, lo, hi, vendor)
             if len(raw) == 0:
                 continue
-            clean, _ = self.cleaner.clean(raw)
+            clean, st = self.cleaner.clean(raw)
             for up in self.updaters:
                 up.buf.add_clean(clean)          # accumulate only; train once below
             total += len(raw)
+            total_anom += st["n_anomaly"]
+            total_clean += st["n_clean"]
             del raw, clean
         # single training pass over the accumulated prewarm buffer
         empty = pd.DataFrame(columns=self._cols())
@@ -80,7 +84,10 @@ class _LiveSession:
                 print(f"[live_session] prewarm train {getattr(up,'metric','?')}: {e}")
         self.block_index += 1
         self.key = key
-        print(f"[live_session] ready · {model}/{mode} · prewarm {total} rows (day-by-day)")
+        rate = (total_anom / total) if total else 0.0
+        print(f"[live_session] ready · {model}/{mode} · prewarm {total:,} rows "
+              f"(day-by-day) · IF total: {total_anom:,} removed ({rate:.1%}) "
+              f"→ {total_clean:,} kept")
 
     def retrain(self, day, metrics, model, mode, resolution, vendor, source, start):
         """Clean the given day's raw trips and update the live model(s). Returns
@@ -93,6 +100,9 @@ class _LiveSession:
             return {"day": day, "n_raw": 0, "n_anomaly": 0, "n_clean": 0,
                     "anom_rate": 0.0, "took": 0.0, "models": []}
         clean, stats = self.cleaner.clean(raw)
+        print(f"[live_session] retrain {day} · IF: "
+              f"{stats['n_raw']:,} raw → {stats['n_anomaly']:,} removed "
+              f"({stats['anom_rate']:.1%}) → {stats['n_clean']:,} kept")
         t0 = time.time()
         per = []
         for up in self.updaters:
@@ -102,7 +112,19 @@ class _LiveSession:
                 per.append({"metric": getattr(up, "metric", "?"), "status": "error",
                             "error": f"{type(e).__name__}: {e}"})
         self.block_index += 1
-        return {"day": day, **stats, "took": round(time.time() - t0, 2), "models": per}
+        took = round(time.time() - t0, 2)
+        # visible proof that the model update runs AFTER the IF cleaning
+        parts = []
+        for r in per:
+            tag = f"{r.get('metric', '?')}:{r.get('status', '?')}"
+            if r.get("wape") is not None:
+                tag += f" (wape {r['wape']:.2f})"
+            if r.get("status") == "error":
+                tag += f" [{str(r.get('error', ''))[:80]}]"
+            parts.append(tag)
+        print(f"[live_session] retrain {day} · {model}/{mode} update: "
+              f"{' · '.join(parts) if parts else 'no updaters'} · took {took}s")
+        return {"day": day, **stats, "took": took, "models": per}
 
 
 SESSION = _LiveSession()
