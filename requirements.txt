@@ -85,3 +85,5 @@ utilsforecast==0.2.16
 wandb==0.28.2
 xgboost==3.4.1
 zstandard==0.25.0
+celery==5.4.0
+redis==5.2.1

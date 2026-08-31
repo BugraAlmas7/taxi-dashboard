@@ -1,3 +1,17 @@
+# Shared env for the web + worker containers (same image, same DB, same broker).
+# YAML anchor so we declare it once and reuse it.
+x-app-env: &app-env
+  TZ: ${TZ:-America/New_York}
+  POSTGRES_DB: ${POSTGRES_DB:-taxi_db}
+  POSTGRES_USER: ${POSTGRES_USER:-postgres}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+  # Default target is the bundled `db` service. Override in .env to point at an
+  # external Postgres (e.g. POSTGRES_HOST=172.29.128.1 for a Windows host from WSL).
+  POSTGRES_HOST: ${POSTGRES_HOST:-db}
+  POSTGRES_PORT: ${POSTGRES_PORT:-5432}
+  # Celery broker + result backend (the `redis` service below)
+  CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
+
 services:
   db:
     image: postgres:18
@@ -16,29 +30,52 @@ services:
       timeout: 3s
       retries: 20
 
+  # ── message broker between web and worker ────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  # ── the UI process (all screens, the API, enqueues heavy jobs) ───────────
   web:
     build: .
     ports:
       - "8000:8000"
     volumes:
-      - .:/app
+      - .:/app                       # shared code + model files with the worker
     environment:
-      - TZ=${TZ:-America/New_York}
-      - POSTGRES_DB=${POSTGRES_DB:-taxi_db}
-      - POSTGRES_USER=${POSTGRES_USER:-postgres}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-postgres}
-      # Default target is the bundled `db` service. Override in .env to point at an
-      # external Postgres (e.g. POSTGRES_HOST=172.29.128.1 for a Windows host from WSL).
-      - POSTGRES_HOST=${POSTGRES_HOST:-db}
+      <<: *app-env
       # public-tunnel support (cloudflared / ngrok): override in .env when exposing
-      - DJANGO_ALLOWED_HOSTS=${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0}
-      - DJANGO_CSRF_TRUSTED_ORIGINS=${DJANGO_CSRF_TRUSTED_ORIGINS:-}
-      - POSTGRES_PORT=${POSTGRES_PORT:-5432}
+      DJANGO_ALLOWED_HOSTS: ${DJANGO_ALLOWED_HOSTS:-localhost,127.0.0.1,0.0.0.0}
+      DJANGO_CSRF_TRUSTED_ORIGINS: ${DJANGO_CSRF_TRUSTED_ORIGINS:-}
       # optional one-time auto data load on startup (see .env.example)
-      - RUN_SETUP_DATA=${RUN_SETUP_DATA:-0}
-      - SETUP_DATA_ARGS=${SETUP_DATA_ARGS:-}
+      RUN_SETUP_DATA: ${RUN_SETUP_DATA:-0}
+      SETUP_DATA_ARGS: ${SETUP_DATA_ARGS:-}
     depends_on:
       db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── the heavy-ML process: runs the streaming pipeline off the UI thread ──
+  worker:
+    build: .
+    volumes:
+      - .:/app                       # SAME mount → worker's model files are web's
+    environment:
+      <<: *app-env
+      WARMUP_MODELS: "0"             # the worker trains models; it doesn't serve them
+    # skip the web entrypoint (bootstrap_db + runserver); run a Celery worker.
+    # --pool=solo keeps torch/XGBoost happy (no forking mid-C-extension).
+    entrypoint: []
+    command: celery -A taxi_web worker -l info --pool=solo --concurrency=1
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
         condition: service_healthy
 
 volumes:

@@ -108,6 +108,33 @@ Chronos-2 / TimesFM (Hugging Face + PEFT/LoRA) · Plotly · Docker.
 6. Open <http://localhost:8000/> (dashboard) and <http://localhost:8000/live/>
    (live forecast). Use `localhost`, **not** `0.0.0.0`.
 
+## Multi-container architecture (web · worker · redis · db)
+
+The stack is split by JOB, not by screen — four containers on one compose network:
+
+| Container | Role |
+|---|---|
+| **web** | Django UI (all screens) + API. Enqueues heavy jobs, never runs them. |
+| **worker** | Celery worker. Runs the streaming pipeline (IF cleaning + XGBoost/Chronos updates) OFF the UI thread. |
+| **redis** | Broker/queue between web and worker. |
+| **db** | PostgreSQL (bundled, or an external one via `.env`). |
+
+`web` and `worker` share the same image and the same `.:/app` mount, so the model
+files the worker writes (`models_update/`, `finetune/`) are exactly the ones the
+web reads. Nothing is handed off in memory — the seam is the shared DB + Redis:
+
+```
+web  ── POST /pipeline/start ──▶ redis ──▶ worker runs Orchestrator loop
+                                            │ writes PipelineWindowResult rows (DB)
+web  ◀── GET /pipeline/status ──────────────┘ (polls those rows)
+web  ── POST /pipeline/stop  ──▶ redis flag ▶ worker stops between windows
+```
+
+Endpoints (login required): `POST /pipeline/start` (optional form fields:
+`models`, `mode`, `source`, `start`, `max_windows`, `tick_sleep`, `run_name`),
+`POST /pipeline/stop`, `GET /pipeline/status`. `docker compose up --build` starts
+all four; scale the heavy side with `docker compose up --scale worker=2`.
+
 ## Using the live page
 
 Pick a model (**XGBoost (Live)** is fast and CPU-friendly), a speed, and press

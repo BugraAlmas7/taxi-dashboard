@@ -155,3 +155,37 @@ class ManualEntry(models.Model):
     class Meta:
         db_table = "manual_entry"
         ordering = ["-added_at"]
+
+# ── Live streaming pipeline results (written by the WORKER, polled by the web) ──
+# The Celery worker (anomaly/tasks.run_streaming_pipeline) writes one row per
+# model per window here; the dashboard polls it for WAPE-over-time + anomaly
+# counts. Django-managed → bootstrap_db creates the table automatically.
+class PipelineWindowResult(models.Model):
+    run_name     = models.CharField(max_length=64, db_index=True)
+    window_index = models.IntegerField()
+    ts_start     = models.DateTimeField(db_index=True)
+    ts_end       = models.DateTimeField()
+
+    metric       = models.TextField()
+    resolution   = models.TextField()
+    vendor       = models.TextField()
+
+    n_raw        = models.IntegerField()
+    n_anomaly    = models.IntegerField()
+    n_clean      = models.IntegerField()
+    anom_rate    = models.FloatField()
+
+    model_name   = models.CharField(max_length=32)
+    mode         = models.CharField(max_length=16)
+    status       = models.CharField(max_length=16)
+    wape         = models.FloatField(null=True)
+    mae          = models.FloatField(null=True)
+    n_train      = models.IntegerField(null=True)
+    detail       = models.CharField(max_length=300, blank=True, default="")
+
+    created_at   = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        db_table = "pipeline_window_result"
+        ordering = ["run_name", "window_index", "model_name"]
+        indexes = [models.Index(fields=["run_name", "window_index"])]

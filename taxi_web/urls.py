@@ -8,6 +8,7 @@ from django.contrib.auth import views as auth_views
 from anomaly import views_live
 from anomaly import views as av
 from anomaly import pages
+from anomaly import views_pipeline
 
 
 urlpatterns = [
@@ -25,6 +26,12 @@ urlpatterns = [
     path("live/", views_live.live_page, name="live"),
     path("live/tick", views_live.live_tick, name="live_tick"),
     path("live/retrain", views_live.live_retrain, name="live_retrain"),
+
+    # Streaming pipeline on the separate worker container (web ↔ redis ↔ worker)
+    path("pipeline/start",  views_pipeline.pipeline_start,  name="pipeline_start"),
+    path("pipeline/stop",   views_pipeline.pipeline_stop,   name="pipeline_stop"),
+    path("pipeline/status", views_pipeline.pipeline_status, name="pipeline_status"),
+
     # Auth
     path("login/",
          auth_views.LoginView.as_view(template_name="anomaly/login.html"),
