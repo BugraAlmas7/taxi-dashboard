@@ -8,7 +8,9 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY requirements.txt .
-RUN pip install --no-cache-dir --default-timeout=1000 --extra-index-url https://download.pytorch.org/whl/cu121 -r requirements.txt
+# torch comes from PyPI (no CUDA index): the plain wheel works on BOTH x86_64 and
+# ARM64 (Apple Silicon Macs run linux/arm64 containers), everything runs on CPU.
+RUN pip install --no-cache-dir --default-timeout=1000 -r requirements.txt
 COPY . .
 EXPOSE 8000
 # Invoked via sh so a missing exec-bit on the mounted host file doesn't matter.
