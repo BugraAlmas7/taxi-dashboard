@@ -47,7 +47,7 @@ Chronos-2 / TimesFM (Hugging Face + PEFT/LoRA) · Plotly · Docker.
 1. **Clone & enter**
 
    ```bash
-   git clone <your-repo-url> taxi && cd taxi
+   git clone https://github.com/BugraAlmas7/taxi-dashboard taxi && cd taxi
    ```
 
 2. **Build & run — one command:**
